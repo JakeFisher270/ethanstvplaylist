@@ -1,0 +1,38 @@
+name: Refresh E Streams TV guide
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '15 4,16 * * *'
+permissions:
+  contents: write
+jobs:
+  epg:
+    runs-on: ubuntu-latest
+    timeout-minutes: 110
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Download EPG grabber
+        run: |
+          git clone --depth 1 https://github.com/iptv-org/epg.git /tmp/epg
+          cd /tmp/epg
+          npm ci
+      - name: Map playlist IDs to available guide sources
+        run: python3 scripts/build_epg_channels.py /tmp/epg
+      - name: Generate current XMLTV schedule
+        run: |
+          cd /tmp/epg
+          npm run grab -- --channels="$GITHUB_WORKSPACE/epg.channels.xml" --days=2 --maxConnections=5 --timeout=15000 --output="$GITHUB_WORKSPACE/guide.new.xml"
+      - name: Validate and publish guide
+        run: |
+          python3 scripts/validate_epg.py guide.new.xml guide.xml
+          rm -f guide.new.xml
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add guide.xml
+          if ! git diff --cached --quiet; then git commit -m 'Refresh E Streams EPG'; git push; fi
