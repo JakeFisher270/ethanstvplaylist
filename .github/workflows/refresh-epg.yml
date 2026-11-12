@@ -1,5 +1,6 @@
 name: Refresh E Streams TV guide
-on:
+
+'on':
   workflow_dispatch:
   schedule:
     - cron: '15 4,16 * * *'
